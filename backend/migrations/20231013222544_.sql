@@ -4,7 +4,7 @@ create table users(
     id BIGSERIAL PRIMARY KEY NOT NULL,
     login text NOT NULL,
     password_hash text not null,
-    is_admin bool
+    is_admin bool not null
 );
 
 create table messages(
