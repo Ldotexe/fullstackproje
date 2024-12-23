@@ -33,7 +33,12 @@ func New(dm datamanager.DataManager) Handler {
 	return &handler{dm: dm}
 }
 
-func (h *handler) UsersHandler(w http.ResponseWriter, _ *http.Request) {
+func (h *handler) UsersHandler(w http.ResponseWriter, r *http.Request) {
+    userLogin, err := getLogin(r)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	ctx := context.Background()
 
 	logins, err := h.dm.GetUsers(ctx)
@@ -46,7 +51,13 @@ func (h *handler) UsersHandler(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	body, err := json.Marshal(logins)
+    withoutUser := make([]string, 0)
+    for _, login := range logins {
+       if login != userLogin {
+          withoutUser = append(withoutUser, login)
+       }
+    }
+	body, err := json.Marshal(withoutUser)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
@@ -160,7 +171,7 @@ func (h *handler) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	cookie := createCookie(jwtCookieName, t)
 	http.SetCookie(w, cookie)
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Authorized!"))
+	w.Write([]byte("{\"status\": \"success\"}"))
 }
 
 func getLogin(r *http.Request) (string, error) {

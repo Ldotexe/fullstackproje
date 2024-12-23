@@ -3,16 +3,16 @@ package db
 import (
 	"context"
 	"fmt"
-
+	"os"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
-const (
-	host     = "localhost"
-	port     = 5432
-	user     = "test"
-	password = "test"
-	dbname   = "test"
+var (
+	host     = os.Getenv("POSTGRES_HOST")
+	port     = os.Getenv("POSTGRES_PORT")
+	user     = os.Getenv("POSTGRES_USER")
+	password = os.Getenv("POSTGRES_PW")
+	dbname   = os.Getenv("POSTGRES_DB")
 )
 
 func NewDB(ctx context.Context) (*Database, error) {
@@ -29,6 +29,6 @@ func (db Database) CloseDB(ctx context.Context) {
 
 func generateDsn() string {
 	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname,
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname,
 	)
 }

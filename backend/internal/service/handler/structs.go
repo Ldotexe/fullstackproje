@@ -1,7 +1,7 @@
 package handler
 
 type messageResponse struct {
-	IsMine bool   `json:"is_mine"`
+	IsMine bool   `json:"isMine"`
 	Text   string `json:"text"`
 }
 
