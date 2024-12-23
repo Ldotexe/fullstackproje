@@ -16,31 +16,26 @@ import (
 )
 
 var jwtSecretKey = []byte("very-secret-key")
+var jwtCookieName = "ssjwt"
 
-type messageResponse struct {
-	IsMine bool   `json:"is_mine"`
-	Text   string `json:"text"`
+type Handler interface {
+	UsersHandler(w http.ResponseWriter, _ *http.Request)
+	MessagesHandler(w http.ResponseWriter, r *http.Request)
+	SendHandler(w http.ResponseWriter, r *http.Request)
+	AuthHandler(w http.ResponseWriter, r *http.Request)
 }
 
-type send struct {
-	Text string `json:"text"`
-}
-
-type auth struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
-}
-
-type Handler struct {
+type handler struct {
 	dm datamanager.DataManager
 }
 
-func New(dm datamanager.DataManager) *Handler {
-	return &Handler{dm: dm}
+func New(dm datamanager.DataManager) Handler {
+	return &handler{dm: dm}
 }
 
-func (h *Handler) UsersHandler(w http.ResponseWriter, _ *http.Request) {
+func (h *handler) UsersHandler(w http.ResponseWriter, _ *http.Request) {
 	ctx := context.Background()
+
 	logins, err := h.dm.GetUsers(ctx)
 	if err != nil {
 		if errors.Is(err, datamanager.ErrObjectNotFound) {
@@ -56,17 +51,22 @@ func (h *Handler) UsersHandler(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 
-	w.Write(body)
+	_, err = w.Write(body)
+	if err != nil {
+		log.Println(err)
+	}
 	return
 }
 
-func (h *Handler) MessagesHandler(w http.ResponseWriter, r *http.Request) {
-	userLogin, err := GetLogin(r)
+func (h *handler) MessagesHandler(w http.ResponseWriter, r *http.Request) {
+	userLogin, err := getLogin(r)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
+
 	toLogin := strings.TrimPrefix(r.URL.Path, "/messages/")
+
 	ctx := context.Background()
 
 	messages, err := h.dm.GetMessages(ctx, &datamanager.Message{FromLogin: userLogin, ToLogin: toLogin})
@@ -93,11 +93,12 @@ func (h *Handler) MessagesHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
+
 	w.Write(body)
 }
 
-func (h *Handler) SendHandler(w http.ResponseWriter, r *http.Request) {
-	userLogin, err := GetLogin(r)
+func (h *handler) SendHandler(w http.ResponseWriter, r *http.Request) {
+	userLogin, err := getLogin(r)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
@@ -116,7 +117,7 @@ func (h *Handler) SendHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (h *Handler) AuthHandler(w http.ResponseWriter, r *http.Request) {
+func (h *handler) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
 	decoder := json.NewDecoder(r.Body)
@@ -156,23 +157,14 @@ func (h *Handler) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 
-	cookie := http.Cookie{
-		Name:     "ssjwt",
-		Value:    t,
-		Path:     "/",
-		MaxAge:   3600,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-	}
-
-	http.SetCookie(w, &cookie)
+	cookie := createCookie(jwtCookieName, t)
+	http.SetCookie(w, cookie)
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("cookie set!"))
+	w.Write([]byte("Authorized!"))
 }
 
-func GetLogin(r *http.Request) (string, error) {
-	cookie, err := r.Cookie("ssjwt")
+func getLogin(r *http.Request) (string, error) {
+	cookie, err := r.Cookie(jwtCookieName)
 	if err != nil || cookie == nil {
 		return "", err
 	}
@@ -184,8 +176,19 @@ func GetLogin(r *http.Request) (string, error) {
 		return "", err
 	}
 
-	// do something with decoded claims
 	userLogin := claims["login"]
 
 	return userLogin.(string), nil
+}
+
+func createCookie(name, value string) *http.Cookie {
+	return &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   3600,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
 }
